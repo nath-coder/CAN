@@ -30,8 +30,8 @@
 		<!-- Menú de Escritorio -->
 		<nav class="hidden md:flex items-center space-x-8 text-sm font-semibold">
 			<a href="/" class="hover:text-orange-400 transition" aria-current={page.url.pathname === '/' ? 'page' : undefined}>Inicio</a>
-			<a href="/about" class="hover:text-orange-400 transition" aria-current={page.url.pathname === '/about' ? 'page' : undefined}>Acerca</a>
-			<a href="/sverdle" class="hover:text-orange-400 transition" aria-current={page.url.pathname.startsWith('/sverdle') ? 'page' : undefined}>Sverdle</a>
+			<a href="/about" class="hover:text-orange-400 transition" aria-current={page.url.pathname === '/about' ? 'page' : undefined}>Documentacion</a>
+			<a href="/sverdle" class="hover:text-orange-400 transition" aria-current={page.url.pathname.startsWith('/sverdle') ? 'page' : undefined}>Nosotros</a>
 			<a href="https://github.com/sveltejs/kit" target="_blank">
 				<img src={github} alt="GitHub" class="w-5 h-5 hover:opacity-80 transition" />
 			</a>
