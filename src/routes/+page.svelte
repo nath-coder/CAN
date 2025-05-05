@@ -840,6 +840,57 @@ function limpiarMundo(){
 	// Limpiar el canvas
 	drawWorld();
 }
+
+function subirCodigo() {
+	const fileInput = document.createElement('input');
+	fileInput.type = 'file';
+	fileInput.accept = '.txt';
+
+	fileInput.onchange = async (event) => {
+		const file = (event.target as HTMLInputElement).files?.[0];
+		if (!file) {
+			alert("No se seleccionó ningún archivo.");
+			return;
+		}
+		if (!file.name.endsWith('.txt')) {
+			alert("Solo se permiten archivos con extensión .txt");
+			return;
+		}
+		if (file.size === 0) {
+			alert("El archivo está vacío.");
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			const contenido = e.target?.result as string;
+			if (!contenido.trim()) {
+				alert("El archivo no contiene código válido.");
+				return;
+			}
+			code = contenido;
+		};
+		reader.onerror = () => {
+			alert("Ocurrió un error al leer el archivo.");
+		};
+		reader.readAsText(file);
+	};
+	fileInput.click();
+}
+
+function descargarCodigo() {
+	if (!code.trim()) {
+		alert("No hay código para descargar.");
+		return;
+	}
+	const blob = new Blob([code], { type: 'text/plain' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = 'codigo.txt';
+	a.click();
+	URL.revokeObjectURL(url);
+}
+
 function ver(){
 	showModal = true;
 }
@@ -995,7 +1046,7 @@ bg-gray-900" >
 			</div>
 		</div>
 		<div class="relative group inline-block">
-			<button class="bg-slate-600 hover:bg-red-700 px-4 py-2 rounded-xl text-sm shadow" on:click={limpiarMundo}>
+			<button class="bg-slate-600 hover:bg-red-700 px-4 py-2 rounded-xl text-sm shadow" on:click={descargarCodigo}>
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
 				  </svg>				  
@@ -1009,7 +1060,7 @@ bg-gray-900" >
 			</div>
 		</div>
 		<div class="relative group inline-block">
-			<button class="bg-slate-600 hover:bg-red-700 px-4 py-2 rounded-xl text-sm shadow" on:click={limpiarMundo}>
+			<button class="bg-slate-600 hover:bg-red-700 px-4 py-2 rounded-xl text-sm shadow" on:click={subirCodigo}>
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
 				</svg>			  
