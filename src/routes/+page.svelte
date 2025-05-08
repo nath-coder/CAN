@@ -14,10 +14,10 @@ let zumbadores: { [key: string]: number } = {};
 // Variables globales adicionales
 let tablaSimbolos: Array<{
   nombre: string;
+  token: number;
   tipo: string;
   linea: number;
   ambito: string;
-  valor?: any;
 }> = [];
 
 let pilaErrores: Array<{
@@ -442,15 +442,7 @@ function compilar() {
 	highlightedCode = resultado;
 	let btnEjecutar = document.getElementById("btnEjecutar");
 	let txtParrafo= document.getElementById("txtError");
-	console.log("resultado:");
-	for(let i=0; i<tablaSimbolos.length; i++){
-		const simbolo=tablaSimbolos[i];
-		if(simbolo.tipo==="constante"){
-			console.log(simbolo.valor,`Constante ${simbolo.nombre} en la linea ${simbolo.linea}`);
-		}else if(simbolo.tipo==="funcion"){
-			console.log(simbolo.nombre,`Funcion ${simbolo.nombre} en la linea ${simbolo.linea}`);
-		}
-	}
+
 	if (txtParrafo) {
 		txtParrafo.innerHTML = "";
 		if (pilaErrores.length > 0) {
@@ -624,15 +616,39 @@ function analizar(code: string): string {
 		// Estado final
 		if (current_st > 999 || current_st_cond > 999) {
 			let clase = "text-white";
-			if (current_st >= 1000 && current_st < 2000){ clase = "text-yellow-400"; // sentencia de control
+			if (current_st >= 1000 && current_st < 2000){ 
+				clase = "text-yellow-400"; // sentencia de control
+				tablaSimbolos.push({
+					nombre: cadena.substring(0, cadena.length - 1),
+					token: current_st,
+					tipo: "sentenciaControl",
+					linea: numeroLinea,
+					ambito: "local"
+				});
 			}
 			else if (current_st_cond >= 2000 && current_st_cond < 3000){ 
 				clase = "text-blue-400"; // condiciones
 				//console.log(cadenaCond.substring(0, cadena.length - 1));
 				resultado += `<span class="${clase}">${cadenaCond.substring(0,cadenaCond.length-1)}</span>`;
 			 	//console.log("cadenaCond",cadenaCond);
+				tablaSimbolos.push({
+					nombre: cadenaCond.substring(0, cadenaCond.length - 1),
+					token: current_st_cond,
+					tipo: "condicion",
+					linea: numeroLinea,
+					ambito: "local"
+				});
 			}
-			else if (current_st >= 3000 && current_st < 4000) clase = "text-green-400"; // acciones
+			else if (current_st >= 3000 && current_st < 4000){
+				clase = "text-green-400"; // acciones
+				tablaSimbolos.push({
+					nombre: cadena.substring(0, cadena.length - 1),
+					token: current_st,
+					tipo: "accion",
+					linea: numeroLinea,
+					ambito: "local"
+				});
+			}
 			else if (current_st >= 4000 && current_st < 5000){
 				let number=parseInt(cadena);
 				clase = "text-cyan-400"; // numero enteros
@@ -643,15 +659,25 @@ function analizar(code: string): string {
 				}
 				//console.log("cadena numeros: ",cadena,numeros);
 				tablaSimbolos.push({
-					nombre: `const_${number}`, // Ej: "const_3"
+					nombre: `${cadena.substring(0, cadena.length - 1)}`,
+					token: numeros.get(number)!,
 					tipo: "constante",
-					valor: number,
 					linea: numeroLinea,
-					ambito: "local"
+					ambito: "local",
 				});
 			   	cadenaDeTokens +=numeros.get(number)+" ";
 			} 
-			else if (current_st >= 5000 && current_st < 6000) clase = "text-pink-400"; // puntuacion
+			else if (current_st >= 5000 && current_st < 6000){ 
+				clase = "text-pink-400"; // puntuacion
+				tablaSimbolos.push({
+					nombre: cadena.substring(0, cadena.length),
+					token: current_st,
+					tipo: "puntuacion",
+					linea: numeroLinea,
+					ambito: "local"
+				});
+			}
+
 			else if (current_st >= 6000 && current_st < 7000){
 			   clase = "text-purple-400";
 			   let funcion= cadena.substring(0, cadena.length - 1);
@@ -661,7 +687,8 @@ function analizar(code: string): string {
 				 
 			   }
 			   tablaSimbolos.push({
-					nombre: `${funcion}`, // Ej: "const_3"
+					nombre: `${funcion}`,
+					token: funciones.get(funcion)!,
 					tipo: "funcion",
 					linea: numeroLinea,
 					ambito: "unkonown",
@@ -679,7 +706,6 @@ function analizar(code: string): string {
 				resultado += `<span class="${clase}">${cadena}</span>`;
 			}
 
-
 			
 	        if(current_st>999 && current_st!==7000 && current_st!==4000 && current_st!=6000) 
 				cadenaDeTokens += current_st+" ";
@@ -695,10 +721,10 @@ function analizar(code: string): string {
 		}
 		
 	}
-	if(cadena!==""){
+	if(cadena!=="" && cadena!=="\n"){
 		resultado += `<span class="text-red-500">${cadena}</span>`;
 		const error={
-			codigo: -1,
+			codigo: -100,
 			linea: numeroLinea,
 			caracter:cadena
 		}

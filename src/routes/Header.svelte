@@ -30,8 +30,9 @@
 		<!-- Menú de Escritorio -->
 		<nav class="hidden md:flex items-center space-x-8 text-sm font-semibold">
 			<a href="/" class="hover:text-fuchsia-300 transition" aria-current={page.url.pathname === '/' ? 'page' : undefined}>Inicio</a>
-			<a href="/documentacion" class="hover:text-fuchsia-300 transition" aria-current={page.url.pathname === '/about' ? 'page' : undefined}>Documentación</a>
-			<a href="/about" class="hover:text-fuchsia-300 transition" aria-current={page.url.pathname.startsWith('/sverdle') ? 'page' : undefined}>Nosotros</a>
+			<a href="/documentacion" class="hover:text-fuchsia-300 transition" aria-current={page.url.pathname === '/documentacion' ? 'page' : undefined}>Documentación</a>
+			<a href="/about" class="hover:text-fuchsia-300 transition" aria-current={page.url.pathname.startsWith('/about') ? 'page' : undefined}>Nosotros</a>
+			<a href="/ayuda" class="block hover:text-fuchsia-300" on:click={() => (isOpen = false)}>Ayuda</a>
 			<a href="https://github.com/sveltejs/kit" target="_blank">
 				<img src={github} alt="GitHub" class="w-5 h-5 hover:opacity-80 transition" />
 			</a>
@@ -43,7 +44,8 @@
 		<div class="md:hidden bg-purple-900 px-6 pb-4 space-y-3 text-sm font-semibold">
 			<a href="/" class="block hover:text-fuchsia-300" on:click={() => (isOpen = false)}>Inicio</a>
 			<a href="/about" class="block hover:text-fuchsia-300" on:click={() => (isOpen = false)}>Documentación</a>
-			<a href="/sverdle" class="block hover:text-fuchsia-300" on:click={() => (isOpen = false)}>Nosotros</a>
+			<a href="/documentacion" class="block hover:text-fuchsia-300" on:click={() => (isOpen = false)}>Nosotros</a>
+			<a href="/ayuda" class="block hover:text-fuchsia-300" on:click={() => (isOpen = false)}>Ayuda</a>
 			<a href="https://github.com/sveltejs/kit" class="block" target="_blank">
 				<img src={github} alt="GitHub" class="w-5 h-5 inline-block hover:opacity-80 transition" />
 			</a>
