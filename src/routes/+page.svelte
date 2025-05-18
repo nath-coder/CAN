@@ -11,6 +11,7 @@ const canvasSize = gridSize * cellSize;
 let wallsV: { [key: string]: boolean} = {};
 let wallsH: { [key: string]: boolean} = {};
 let zumbadores: { [key: string]: number } = {};
+
 // Variables globales adicionales
 let tablaSimbolos: Array<{
   nombre: string;
@@ -53,337 +54,228 @@ let can= {
   mochila: zumbadoresMoc
 };
 
-// Definición de tipos de tokens
+let tokens: number[] = [];
+let contSin = 0;
 type Token = number;
 
-type ASTNode =
-  | { tipo: 'programa', cuerpo: ASTNode[]; funciones: ASTNode[] }
-  | { tipo: 'define', nombre: number, cuerpo: ASTNode[] }
-  | { tipo: 'llamada_funcion', nombre: number }
-  | { tipo: 'avanza' }
-  | { tipo: 'gira' }
-  | {tipo: 'toma'}
-  | { tipo: 'deja' }
-  | { tipo: 'apagate' }
-  | { tipo: 'repite', veces: number, cuerpo: ASTNode[] }
-  | { tipo: 'mientras', condicion: Condicion, cuerpo: ASTNode[] }
-  | { tipo: 'si', condicion: Condicion, entonces: ASTNode[], sino?: ASTNode[] };
+type ASTNode = {
+  token: number;
+  hijos?: ASTNode[];
+};
+let  ast: ASTNode;
+function crearNodo(token: number, hijos: ASTNode[] = []): ASTNode {
+  return { token, hijos };
+}
 
-type Condicion =
-  | { tipo: 'condicion_base', nombre: number }
-  | { tipo: 'not', valor: Condicion }
-  | { tipo: 'and', izquierda: Condicion, derecha: Condicion }
-  | { tipo: 'or', izquierda: Condicion, derecha: Condicion };
-
-let tokens: (number)[] = [];
-let tablaFunciones: { [key: number]: ASTNode[] } = {};
-let contSin=0;
-function expect(token: number) {
+function expect(token: number): ASTNode {
   if (tokens[contSin] !== token) {
     throw new Error(`Se esperaba '${token}' pero se encontró '${tokens[contSin]}'`);
   }
+  const nodo = crearNodo(tokens[contSin]);
   contSin++;
+  return nodo;
 }
-function parse(inputTokens: (number )[]): ASTNode {
-	contSin = 0;
-  const funciones: ASTNode[] = [];
-  let inicioEncontrado = false;
-  let cuerpoInicio: ASTNode[] = [];
+
+function parse(inputTokens: number[]): ASTNode {
+  tokens = inputTokens;
+  contSin = 0;
+
+  const hijos: ASTNode[] = [];
 
   while (contSin < tokens.length) {
     const tokenActual = tokens[contSin];
-
-    if (tokenActual === 1000) { // token de 'inicio'
-      if (inicioEncontrado) {
-        throw new Error("Error: ya se definió 'inicio()'. Solo se permite una.");
-      }
-      contSin++;
-      expect(5000); // consumir '('
-	  console.log("token actual (");
-	  expect(5001); // consumir ')'
-	  console.log("token actual )");
-	  expect(5004); // consumir '{'
-	  console.log("token actual {");
-
-      const instrucciones: ASTNode[] = [];
-      while (tokens[contSin] !== 5005) { // token de '}'
-        instrucciones.push(parseInstruccion());
-      }
-      expect(5005); // consumir '}'
-      cuerpoInicio = instrucciones;
-      inicioEncontrado = true;
-
-    } else if (tokenActual === 1009) { // token de 'define'
-      funciones.push(parseDefine());
-
+    if (tokenActual === 1000) { // 'inicio'
+      hijos.push(parseInicio());
+    } else if (tokenActual === 1009) { // 'define'
+      hijos.push(parseDefine());
     } else {
-      throw new Error("Error: solo se permiten definiciones de funciones o 'inicio()' a nivel superior.");
+      throw new Error("Se esperaba 'inicio' o 'define'.");
     }
   }
 
-  if (!inicioEncontrado) {
-    throw new Error("Error: no se encontró la función 'inicio()'.");
+  return crearNodo(-1, hijos); // -1 representa el nodo raíz del programa
+}
+
+function parseInicio(): ASTNode {
+  const hijos: ASTNode[] = [];
+  hijos.push(expect(1000)); // 'inicio'
+  hijos.push(expect(5000)); // '('
+  hijos.push(expect(5001)); // ')'
+  hijos.push(expect(5004)); // '{'
+
+  while (tokens[contSin] !== 5005) {
+    hijos.push(parseInstruccion());
   }
 
-  return {
-    tipo: 'programa',
-    cuerpo: cuerpoInicio,
-    funciones
-  };
+  hijos.push(expect(5005)); // '}'
+
+  return crearNodo(1000, hijos); // Nodo de 'inicio' con todos sus hijos
 }
+
 function parseDefine(): ASTNode {
-  contSin++;
-	let nombre=0;
-    if ( tokens[contSin] >=6000 && tokens[contSin] < 7000) {
-		nombre = tokens[contSin];
-	}else{
-		throw new Error(`Se esperaba un nombre de funcion pero se encontró '${tokens[contSin]}'`);
-	}
-	contSin++;
-    expect(5000);
-    expect(5001);
-    expect(5004);
-    const cuerpo = parseInstrucciones();
-    expect(5005);
-    tablaFunciones[nombre] = cuerpo;
-    return { tipo: 'define', nombre, cuerpo };
-}
-function parseInstrucciones(): ASTNode[] {
-  const instrucciones: ASTNode[] = [];
-  while (contSin < tokens.length && tokens[contSin] !== 5005) {
-    instrucciones.push(parseInstruccion());
-  }
-  return instrucciones;
-}
+  const hijos: ASTNode[] = [];
+  hijos.push(expect(1009)); // 'define'
 
+  if (tokens[contSin] >= 6000 && tokens[contSin] < 7000) {
+    hijos.push(expect(tokens[contSin])); // nombre función
+  } else {
+    throw new Error(`Se esperaba nombre de función, se encontró ${tokens[contSin]}`);
+  }
+
+  hijos.push(expect(5000)); // '('
+  hijos.push(expect(5001)); // ')'
+  hijos.push(expect(5004)); // '{'
+
+  while (tokens[contSin] !== 5005) {
+    hijos.push(parseInstruccion());
+  }
+
+  hijos.push(expect(5005)); // '}'
+
+  return crearNodo(1009, hijos); // Nodo 'define'
+}
 function parseInstruccion(): ASTNode {
   const token = tokens[contSin];
 
-
-  //funciones de acccion
-  if (token === 3000) {
-    contSin++; expect(5000);
-	expect(5001);
-	expect(5002);
-    return { tipo: 'avanza' };
-  }
-  if (token === 3001) {
-    contSin++; expect(5000);
-	expect(5001);
-	expect(5002);
-    return { tipo: 'gira' };
-  }
-  if (token === 3002) {
-    contSin++; expect(5000);
-	expect(5001);
-	expect(5002);
-    return { tipo: 'toma' };
-  }
-  if (token === 3003) {
-    contSin++; expect(5000);
-	expect(5001);
-	expect(5002);
-    return { tipo: 'deja' };
-  }
-  
-  if (token === 3004) {
-    contSin++; expect(5000);
-	expect(5001);
-	expect(5002);
-    return { tipo: 'apagate' };
+  // acciones
+  if ([3000, 3001, 3002, 3003, 3004].includes(token)) {
+    const hijos: ASTNode[] = [];
+    hijos.push(expect(token)); // acción
+    hijos.push(expect(5000)); // '('
+    hijos.push(expect(5001)); // ')'
+    hijos.push(expect(5002)); // ';'
+    return crearNodo(token, hijos);
   }
 
-
-  //funciones de control
-
-  //token repetir
+  // repetir
   if (token === 1007) {
-    contSin++; expect(5000);
-	let veces;
-    if ( tokens[contSin] >=4000 && tokens[contSin] < 5000) {
-		veces = tokens[contSin];
-	}else{
-		throw new Error(`Se esperaba an number pero se encontró '${tokens[contSin]}'`);
-	}
-	contSin++;
-    expect(5001);
-    expect(5004);
-    const cuerpo = parseInstrucciones();
-    expect(5005);
-    return { tipo: 'repite', veces, cuerpo };
-  }
-
-  //token mientras
-  if (token === 1005) {
-    contSin++; expect(5000);
-    const condicion = parseCondicion();
-    expect(5001);
-    expect(5004);
-    const cuerpo = parseInstrucciones();
-    expect(5005);
-    return { tipo: 'mientras', condicion, cuerpo };
-  }
-
-  //token si
-  if (token === 1002) {
-    contSin++; expect(5000);
-    const condicion = parseCondicion();
-    expect(5001);
-    expect(5004);
-    const entonces = parseInstrucciones();
-    expect(5005);
-    let sino: ASTNode[] | undefined;
-    if (tokens[contSin] === 1004) {
-      contSin++; expect(5004);
-      sino = parseInstrucciones();
-      expect(5005);
+    const hijos: ASTNode[] = [];
+    hijos.push(expect(1007)); // repetir
+    hijos.push(expect(5000)); // (
+    if (tokens[contSin] >= 4000 && tokens[contSin] < 5000) {
+      hijos.push(expect(tokens[contSin])); // número
+    } else {
+      throw new Error(`Se esperaba número, se encontró ${tokens[contSin]}`);
     }
-    return { tipo: 'si', condicion, entonces, sino };
+    hijos.push(expect(5001)); // )
+    hijos.push(expect(5004)); // {
+
+    while (tokens[contSin] !== 5005) {
+      hijos.push(parseInstruccion());
+    }
+
+    hijos.push(expect(5005)); // }
+    return crearNodo(1007, hijos);
   }
 
-  //token define
-  if (token === 1009) {
-    throw new Error("Error: no se permite definir funciones dentro de otras funciones.");
+  // mientras
+  if (token === 1005) {
+    const hijos: ASTNode[] = [];
+    hijos.push(expect(1005)); // mientras
+    hijos.push(expect(5000)); // (
+    hijos.push(parseCondicion());
+    hijos.push(expect(5001)); // )
+    hijos.push(expect(5004)); // {
+    while (tokens[contSin] !== 5005) {
+      hijos.push(parseInstruccion());
+    }
+    hijos.push(expect(5005)); // }
+    return crearNodo(1005, hijos);
   }
-  if (token>=6000 && token < 7000) {
-    contSin++; expect(5000);
-	expect(5001);
-	expect(5002);
-    return { tipo: 'llamada_funcion', nombre: token };
+
+  // si ... sino
+  if (token === 1002) {
+    const hijos: ASTNode[] = [];
+    hijos.push(expect(1002)); // si
+    hijos.push(expect(5000)); // (
+    hijos.push(parseCondicion());
+    hijos.push(expect(5001)); // )
+    hijos.push(expect(5004)); // {
+    while (tokens[contSin] !== 5005) {
+      hijos.push(parseInstruccion());
+    }
+    hijos.push(expect(5005)); // }
+
+    if (tokens[contSin] === 1004) { // sino
+      hijos.push(expect(1004)); // sino
+      hijos.push(expect(5004)); // {
+      while (tokens[contSin] !== 5005) {
+        hijos.push(parseInstruccion());
+      }
+      hijos.push(expect(5005)); // }
+    }
+
+    return crearNodo(1002, hijos);
   }
+
+  // llamada a función
+  if (token >= 6000 && token < 7000) {
+    const hijos: ASTNode[] = [];
+    hijos.push(expect(token));
+    hijos.push(expect(5000));
+    hijos.push(expect(5001));
+    hijos.push(expect(5002));
+    return crearNodo(token, hijos);
+  }
+
   throw new Error(`Instrucción inválida: ${token}`);
+}
 
-  function parseCondicion(): Condicion {
+function parseCondicion(): ASTNode {
   return parseOr();
- }
+}
 
-function parseOr(): Condicion {
-  let izquierda = parseAnd();
-  while (tokens[contSin] === 5006) {
-    contSin++;
+function parseOr(): ASTNode {
+  let nodo = parseAnd();
+  while (tokens[contSin] === 5006) { // 'or'
+    const op = expect(5006);
     const derecha = parseAnd();
-    izquierda = { tipo: 'or', izquierda, derecha };
+    nodo = crearNodo(5006, [nodo, derecha]);
   }
-  return izquierda;
+  return nodo;
 }
 
-function parseAnd(): Condicion {
-  let izquierda = parseNot();
-  while (tokens[contSin] === 5008) {
-    contSin++;
+function parseAnd(): ASTNode {
+  let nodo = parseNot();
+  while (tokens[contSin] === 5008) { // 'and'
+    const op = expect(5008);
     const derecha = parseNot();
-    izquierda = { tipo: 'and', izquierda, derecha };
+    nodo = crearNodo(5008, [nodo, derecha]);
   }
-  return izquierda;
+  return nodo;
 }
 
-function parseNot(): Condicion {
-  if (tokens[contSin] === 5007) {
-    contSin++;
+function parseNot(): ASTNode {
+  if (tokens[contSin] === 5007) { // 'not'
+    const op = expect(5007);
     const valor = parseNot();
-    return { tipo: 'not', valor };
+    return crearNodo(5007, [valor]);
   }
   return parseCondicionBase();
 }
 
-function parseCondicionBase(): Condicion {
-  if (tokens[contSin] === 5000) {
-    contSin++;
+function parseCondicionBase(): ASTNode {
+  if (tokens[contSin] === 5000) { // (
+    expect(5000);
     const cond = parseCondicion();
     expect(5001);
     return cond;
   }
-  let nombre;
+
   if (tokens[contSin] >= 2000 && tokens[contSin] < 3000) {
-	nombre = tokens[contSin];
-  } else {
-	throw new Error(`Se esperaba una condicion pero se encontró '${tokens[contSin]}'`);
+    return expect(tokens[contSin]); // condición base
   }
-  return { tipo: 'condicion_base', nombre };
+
+  throw new Error(`Se esperaba condición base, se encontró ${tokens[contSin]}`);
 }
-
-
-}
-
-function imprimirAST(nodo: ASTNode, nivel: number = 0): void {
+function imprimirAST(nodo: ASTNode, nivel = 0): void {
   const indent = '  '.repeat(nivel);
-
-  switch (nodo.tipo) {
-    case 'programa':
-      console.log(`${indent}<programa>`);
-
-      // Tratamos cuerpo como inicio
-      console.log(`${indent}  <inicio>`);
-      nodo.cuerpo.forEach(instr => imprimirAST(instr, nivel + 2));
-      console.log(`${indent}  </inicio>`);
-
-      // Luego imprimimos las funciones definidas
-      nodo.funciones.forEach(fn => imprimirAST(fn, nivel + 1));
-
-      console.log(`${indent}</programa>`);
-      break;
-
-    case 'define':
-      console.log(`${indent}<define nombre="${nodo.nombre}">`);
-      nodo.cuerpo.forEach(instr => imprimirAST(instr, nivel + 1));
-      console.log(`${indent}</define>`);
-      break;
-
-    case 'llamada_funcion':
-      console.log(`${indent}<llamada_funcion nombre="${nodo.nombre}" />`);
-      break;
-
-    case 'avanza':
-    case 'gira':
-    case 'toma':
-    case 'deja':
-    case 'apagate':
-      console.log(`${indent}<${nodo.tipo} />`);
-      break;
-
-    case 'repite':
-      console.log(`${indent}<repite veces="${nodo.veces}">`);
-      nodo.cuerpo.forEach(instr => imprimirAST(instr, nivel + 1));
-      console.log(`${indent}</repite>`);
-      break;
-
-    case 'mientras':
-      console.log(`${indent}<mientras condicion="${stringCondicion(nodo.condicion)}">`);
-      nodo.cuerpo.forEach(instr => imprimirAST(instr, nivel + 1));
-      console.log(`${indent}</mientras>`);
-      break;
-
-    case 'si':
-      console.log(`${indent}<si condicion="${stringCondicion(nodo.condicion)}">`);
-      nodo.entonces.forEach(instr => imprimirAST(instr, nivel + 1));
-      if (nodo.sino) {
-        console.log(`${indent}  <sino>`);
-        nodo.sino.forEach(instr => imprimirAST(instr, nivel + 2));
-        console.log(`${indent}  </sino>`);
-      }
-      console.log(`${indent}</si>`);
-      break;
-
-    default:
-      console.log(`${indent}<nodo tipo="${(nodo as any).tipo}" />`);
+  console.log(`${indent}<token valor="${nodo.token}">`);
+  if (nodo.hijos) {
+    nodo.hijos.forEach(h => imprimirAST(h, nivel + 1));
   }
+  console.log(`${indent}</token>`);
 }
-
-function stringCondicion(cond: Condicion): string {
-  switch (cond.tipo) {
-    case 'condicion_base':
-      return `cond(${cond.nombre})`;
-    case 'not':
-      return `not(${stringCondicion(cond.valor)})`;
-    case 'and':
-      return `(${stringCondicion(cond.izquierda)} and ${stringCondicion(cond.derecha)})`;
-    case 'or':
-      return `(${stringCondicion(cond.izquierda)} or ${stringCondicion(cond.derecha)})`;
-    default:
-      return 'condDesconocida';
-  }
-}
-
 
 function mover() {
   const { x, y, dir } = can;
@@ -455,9 +347,10 @@ function compilar() {
 		} else {
 			tokens = cadenaDeTokens.trim().split(' ').map(Number);
 			console.log("tokens para realizar analices sintactico",tokens);
-			/*const ast = parse(tokens);
+			ast = parse(tokens);
 			console.log("AST:", ast);
-			imprimirAST(ast);*/
+			imprimirAST(ast);
+
 			btnEjecutar?.removeAttribute("disabled");
 			txtParrafo.innerHTML = "Sin errores";
 			txtParrafo.classList.remove("text-red-500");
@@ -977,8 +870,8 @@ const analysisOptions = [
     { value: "", label: "Seleccione una opción", disabled: true },
 	{ value: "tokens", label: "Cadena de tokens" },
     { value: "tabla de simbolos", label: "Tabla de símbolos" },
-    { value: "árbol sintáctico", label: "Árbol de análisis sintáctico" },
-    { value: "árbol semantico", label: "Árbol semántico" }
+    { value: "arbol sintactico", label: "Árbol de análisis sintáctico" },
+    { value: "arbol semantico", label: "Árbol semántico" }
   ];
 </script>
 
@@ -1130,7 +1023,7 @@ bg-gray-900" >
 			</div>	
 		</div>
 	  </div>
-	  <Modal  tokens={tokens} tablaSimbolos={tablaSimbolos} opcion={selectedOption} open={showModal} onClose={cerrar} />
+	  <Modal  tokens={tokens} tablaSimbolos={tablaSimbolos} opcion={selectedOption} open={showModal} onClose={cerrar}  ast={ast}/>
 	  <div>
 		<input
 		  type="number"
