@@ -4,6 +4,7 @@ import Modal from './Modal.svelte';
 let showModal = false;
 
 let canvas: HTMLCanvasElement;
+let detenerEjecucion = false;
 const gridSize = 100;
 const cellSize = 25;
 const canvasSize = gridSize * cellSize;
@@ -22,6 +23,7 @@ let tablaSimbolos: Array<{
 }> = [];
 
 let pilaErrores: Array<{
+date: string;
   codigo: number;
   linea: number;
   caracter?: string;
@@ -41,7 +43,16 @@ errores.set(-1, "No es un palabra reservada");
 errores.set(-5, "Caracter no válido");
 errores.set(90, "No es un número entero");
 errores.set(-10, "Nombre de función no válido");
-
+errores.set(100,"Duplicado de función inicio o no es un nivel superior");
+errores.set(105,"No se encontró la función 'inicio()'");
+errores.set(110,"Falta parentesis o llave de apertura");
+errores.set(120,"Falta parentesis o llave de cierre");
+errores.set(135,"No se encontró un nombre de función");
+errores.set(140,"Se esperaba un número");
+errores.set(145,"No se permite definir funciones dentro de otras funciones");
+errores.set(150,"No es una instrucción válida");
+errores.set(200,"La función ya existe");
+errores.set(205,"No se encontró la función");
 let cadenaDeTokens = "";
 
 let matriz: number[][] = [];
@@ -53,230 +64,464 @@ let can= {
   dir: 0, // 0=arriba, 1=derecha, 2=abajo, 3=izquierda
   mochila: zumbadoresMoc
 };
-
-let tokens: number[] = [];
-let contSin = 0;
 type Token = number;
+type ASTNode =
+  | { tipo: 'programa', cuerpo: ASTNode[]; funciones: ASTNode[] }
+  | { tipo: 'define', nombre: number, cuerpo: ASTNode[] }
+  | { tipo: 'llamada_funcion', nombre: number,linea: number }
+  | { tipo: 'avanza' }
+  | { tipo: 'gira' }
+  | {tipo: 'toma'}
+  | { tipo: 'deja' }
+  | { tipo: 'apagate' }
+  | { tipo: 'repite', veces: number, cuerpo: ASTNode[] }
+  | { tipo: 'mientras', condicion: Condicion, cuerpo: ASTNode[] }
+  | { tipo: 'si', condicion: Condicion, entonces: ASTNode[], sino?: ASTNode[] };
 
-type ASTNode = {
-  token: number;
-  hijos?: ASTNode[];
-};
-let  ast: ASTNode;
-function crearNodo(token: number, hijos: ASTNode[] = []): ASTNode {
-  return { token, hijos };
-}
+type Condicion =
+  | { tipo: 'condicion_base', nombre: number }
+  | { tipo: 'not', valor: Condicion }
+  | { tipo: 'and', izquierda: Condicion, derecha: Condicion }
+  | { tipo: 'or', izquierda: Condicion, derecha: Condicion };
 
-function expect(token: number): ASTNode {
-  if (tokens[contSin] !== token) {
-    throw new Error(`Se esperaba '${token}' pero se encontró '${tokens[contSin]}'`);
+let ast:ASTNode;
+let tokens: (number)[] = [];
+let tablaFunciones: { [key: number]: ASTNode[] } = {};
+let contSin=0;
+function obtenerClavePorValor(valorBuscado: number): string | null {
+  for (let [clave, valor] of funciones.entries()) {
+    if (valor === valorBuscado) {
+      return clave;
+    }
   }
-  const nodo = crearNodo(tokens[contSin]);
-  contSin++;
-  return nodo;
+  return null; // No se encontró
+}
+function existeSimbolo(nombre: string, ambito: string): boolean {
+  return tablaSimbolos.some(s => s.nombre === nombre && s.ambito === ambito);
 }
 
-function parse(inputTokens: number[]): ASTNode {
-  tokens = inputTokens;
-  contSin = 0;
+function sincronizar(finTokens: number[]) {
+  while (contSin < tablaSimbolos.length && !finTokens.includes(tablaSimbolos[contSin].token)) {
+    contSin++;
+  }
+}
 
-  const hijos: ASTNode[] = [];
+function expect(token: number) {
+  if (tablaSimbolos[contSin].token !== token) {
+   // throw new Error(`Se esperaba '${token}' pero se encontró '${tablaSimbolos[contSin].token}'`);
+   pilaErrores.push({
+	 date: new Date().toLocaleDateString('es-MX'),
+		codigo: 110,
+		linea: tablaSimbolos[contSin].linea,
+		caracter: tablaSimbolos[contSin].nombre
+	});
+  while (
+      contSin < tablaSimbolos.length &&
+      tablaSimbolos[contSin].token !== token
+    ) {
+      contSin++;
+    }
+  }
+  contSin++;
+}
+function parse(inputTokens: (number )[]): ASTNode {
+	contSin = 0;
+  const funciones: ASTNode[] = [];
+  let inicioEncontrado = false;
+  let cuerpoInicio: ASTNode[] = [];
 
-  while (contSin < tokens.length) {
+  while (contSin < tablaSimbolos.length) {
     const tokenActual = tokens[contSin];
-    if (tokenActual === 1000) { // 'inicio'
-      hijos.push(parseInicio());
-    } else if (tokenActual === 1009) { // 'define'
-      hijos.push(parseDefine());
+
+    if (tokenActual === 1000) { // token de 'inicio'
+      if (inicioEncontrado) {
+		pilaErrores.push({
+			date: new Date().toLocaleDateString('es-MX'),
+			codigo: 100,
+			linea: tablaSimbolos[contSin].linea,
+			caracter: tablaSimbolos[contSin].nombre
+		});
+		sincronizar([1009]);
+		return {
+			tipo: 'programa',	
+			cuerpo: [],
+			funciones: []
+		};
+        //throw new Error(`Error: ya se definió 'inicio()'. Solo se permite una.`);
+      }
+      contSin++;
+      expect(5000); // consumir '('
+	  console.log("token actual (");
+	  expect(5001); // consumir ')'
+	  console.log("token actual )");
+	  expect(5004); // consumir '{'
+	  console.log("token actual {");
+
+      const instrucciones: ASTNode[] = [];
+      while (tablaSimbolos[contSin].token !== 5005) { // token de '}'
+        instrucciones.push(parseInstruccion());
+      }
+      expect(5005); // consumir '}'
+      cuerpoInicio = instrucciones;
+      inicioEncontrado = true;
+
+    } else if (tokenActual === 1009) { // token de 'define'
+      funciones.push(parseDefine());
+
     } else {
-      throw new Error("Se esperaba 'inicio' o 'define'.");
+		pilaErrores.push({
+			date: new Date().toLocaleDateString('es-MX'),
+			codigo: 100,
+			linea: tablaSimbolos[contSin].linea,
+			caracter: tablaSimbolos[contSin].nombre
+		});
+		sincronizar([1009]);
+		return {
+			tipo: 'programa',
+			cuerpo: [],
+			funciones: []
+		};
+	  //throw new Error(`Error: se encontró un token inesperado '${tokenActual}'`);
     }
   }
 
-  return crearNodo(-1, hijos); // -1 representa el nodo raíz del programa
-}
-
-function parseInicio(): ASTNode {
-  const hijos: ASTNode[] = [];
-  hijos.push(expect(1000)); // 'inicio'
-  hijos.push(expect(5000)); // '('
-  hijos.push(expect(5001)); // ')'
-  hijos.push(expect(5004)); // '{'
-
-  while (tokens[contSin] !== 5005) {
-    hijos.push(parseInstruccion());
+  if (!inicioEncontrado) {
+    pilaErrores.push({
+			date: new Date().toLocaleDateString('es-MX'),
+			codigo: 105,
+			linea: tablaSimbolos[contSin].linea,
+			caracter: tablaSimbolos[contSin].nombre
+		});
   }
 
-  hijos.push(expect(5005)); // '}'
-
-  return crearNodo(1000, hijos); // Nodo de 'inicio' con todos sus hijos
+  return {
+    tipo: 'programa',
+    cuerpo: cuerpoInicio,
+    funciones
+  };
 }
+
 
 function parseDefine(): ASTNode {
-  const hijos: ASTNode[] = [];
-  hijos.push(expect(1009)); // 'define'
-
-  if (tokens[contSin] >= 6000 && tokens[contSin] < 7000) {
-    hijos.push(expect(tokens[contSin])); // nombre función
-  } else {
-    throw new Error(`Se esperaba nombre de función, se encontró ${tokens[contSin]}`);
-  }
-
-  hijos.push(expect(5000)); // '('
-  hijos.push(expect(5001)); // ')'
-  hijos.push(expect(5004)); // '{'
-
-  while (tokens[contSin] !== 5005) {
-    hijos.push(parseInstruccion());
-  }
-
-  hijos.push(expect(5005)); // '}'
-
-  return crearNodo(1009, hijos); // Nodo 'define'
+  contSin++;
+	let nombre=0;
+    if ( tablaSimbolos[contSin].token >=6000 && tablaSimbolos[contSin].token < 7000) {
+		nombre = tokens[contSin];
+		if(existeSimbolo(tablaSimbolos[contSin].nombre, "global")) {
+			pilaErrores.push({
+				date: new Date().toLocaleDateString('es-MX'),
+				codigo: 200,
+				linea: tablaSimbolos[contSin].linea,
+				caracter: tablaSimbolos[contSin].nombre
+			});
+		}
+		tablaSimbolos[contSin].ambito = "global";
+		
+	}else{
+	
+		pilaErrores.push({
+			date: new Date().toLocaleDateString('es-MX'),
+			codigo: 135,
+			linea: tablaSimbolos[contSin].linea,
+			caracter: tablaSimbolos[contSin].nombre
+		});
+		sincronizar([5000, 5001, 5004,5005]);
+		return { tipo: 'define', nombre: 0, cuerpo: [] };
+		//throw new Error(`Se esperaba un nombre de funcion pero se encontró '${tablaSimbolos[contSin].token}'`);
+	}
+	contSin++;
+    expect(5000);
+    expect(5001);
+    expect(5004);
+    const cuerpo = parseInstrucciones();
+    expect(5005);
+    tablaFunciones[nombre] = cuerpo;
+    return { tipo: 'define', nombre, cuerpo };
 }
+function parseInstrucciones(): ASTNode[] {
+  const instrucciones: ASTNode[] = [];
+  while (contSin < tokens.length && tablaSimbolos[contSin].token !== 5005) {
+    instrucciones.push(parseInstruccion());
+  }
+  return instrucciones;
+}
+
 function parseInstruccion(): ASTNode {
-  const token = tokens[contSin];
-
-  // acciones
-  if ([3000, 3001, 3002, 3003, 3004].includes(token)) {
-    const hijos: ASTNode[] = [];
-    hijos.push(expect(token)); // acción
-    hijos.push(expect(5000)); // '('
-    hijos.push(expect(5001)); // ')'
-    hijos.push(expect(5002)); // ';'
-    return crearNodo(token, hijos);
+  const token = tablaSimbolos[contSin].token;
+  //funciones de acccion
+  if (token === 3000) {
+    contSin++; expect(5000);
+	expect(5001);
+	expect(5002);
+    return { tipo: 'avanza' };
   }
+  if (token === 3001) {
+    contSin++; expect(5000);
+	expect(5001);
+	expect(5002);
+    return { tipo: 'gira' };
+  }
+  if (token === 3002) {
+    contSin++; expect(5000);
+	expect(5001);
+	expect(5002);
+    return { tipo: 'toma' };
+  }
+  if (token === 3003) {
+    contSin++; expect(5000);
+	expect(5001);
+	expect(5002);
+    return { tipo: 'deja' };
+  }
+  
+  if (token === 3004) {
+    contSin++; expect(5000);
+	expect(5001);
+	expect(5002);
+    return { tipo: 'apagate' };
+  }
+  //funciones de control
 
-  // repetir
+  //token repetir
   if (token === 1007) {
-    const hijos: ASTNode[] = [];
-    hijos.push(expect(1007)); // repetir
-    hijos.push(expect(5000)); // (
-    if (tokens[contSin] >= 4000 && tokens[contSin] < 5000) {
-      hijos.push(expect(tokens[contSin])); // número
-    } else {
-      throw new Error(`Se esperaba número, se encontró ${tokens[contSin]}`);
-    }
-    hijos.push(expect(5001)); // )
-    hijos.push(expect(5004)); // {
-
-    while (tokens[contSin] !== 5005) {
-      hijos.push(parseInstruccion());
-    }
-
-    hijos.push(expect(5005)); // }
-    return crearNodo(1007, hijos);
+    contSin++; expect(5000);
+	let veces;
+    if ( tablaSimbolos[contSin].token >=4000 && tablaSimbolos[contSin].token < 5000) {
+		veces = tokens[contSin];
+	}else{
+		pilaErrores.push({
+			date: new Date().toLocaleDateString('es-MX'),
+			codigo: 140,
+			linea: tablaSimbolos[contSin].linea,
+			caracter: tablaSimbolos[contSin].nombre
+		});
+		sincronizar([5001, 5004]);
+		return { tipo: 'repite', veces: 0, cuerpo: [] };
+		//throw new Error("Se esperaba an number pero se encontró '${tokens[contSin]}'");
+	}
+	contSin++;
+    expect(5001);
+    expect(5004);
+    const cuerpo = parseInstrucciones();
+    expect(5005);
+    return { tipo: 'repite', veces, cuerpo };
   }
 
-  // mientras
+  //token mientras
   if (token === 1005) {
-    const hijos: ASTNode[] = [];
-    hijos.push(expect(1005)); // mientras
-    hijos.push(expect(5000)); // (
-    hijos.push(parseCondicion());
-    hijos.push(expect(5001)); // )
-    hijos.push(expect(5004)); // {
-    while (tokens[contSin] !== 5005) {
-      hijos.push(parseInstruccion());
-    }
-    hijos.push(expect(5005)); // }
-    return crearNodo(1005, hijos);
+    contSin++; expect(5000);
+    const condicion = parseCondicion();
+    expect(5001);
+    expect(5004);
+    const cuerpo = parseInstrucciones();
+    expect(5005);
+    return { tipo: 'mientras', condicion, cuerpo };
   }
 
-  // si ... sino
+  //token si
   if (token === 1002) {
-    const hijos: ASTNode[] = [];
-    hijos.push(expect(1002)); // si
-    hijos.push(expect(5000)); // (
-    hijos.push(parseCondicion());
-    hijos.push(expect(5001)); // )
-    hijos.push(expect(5004)); // {
-    while (tokens[contSin] !== 5005) {
-      hijos.push(parseInstruccion());
+    contSin++; expect(5000);
+    const condicion = parseCondicion();
+    expect(5001);
+    expect(5004);
+    const entonces = parseInstrucciones();
+    expect(5005);
+    let sino: ASTNode[] | undefined;
+    if (tablaSimbolos[contSin].token === 1004) {
+      contSin++; expect(5004);
+      sino = parseInstrucciones();
+      expect(5005);
     }
-    hijos.push(expect(5005)); // }
-
-    if (tokens[contSin] === 1004) { // sino
-      hijos.push(expect(1004)); // sino
-      hijos.push(expect(5004)); // {
-      while (tokens[contSin] !== 5005) {
-        hijos.push(parseInstruccion());
-      }
-      hijos.push(expect(5005)); // }
-    }
-
-    return crearNodo(1002, hijos);
+    return { tipo: 'si', condicion, entonces, sino };
   }
 
-  // llamada a función
-  if (token >= 6000 && token < 7000) {
-    const hijos: ASTNode[] = [];
-    hijos.push(expect(token));
-    hijos.push(expect(5000));
-    hijos.push(expect(5001));
-    hijos.push(expect(5002));
-    return crearNodo(token, hijos);
+  //token define
+  if (token === 1009) {
+	pilaErrores.push({
+		date: new Date().toLocaleDateString('es-MX'),
+		codigo: 145,
+		linea: tablaSimbolos[contSin].linea,
+		caracter: tablaSimbolos[contSin].nombre
+	});
+	contSin++;
+   // throw new Error("Error: no se permite definir funciones dentro de otras funciones.");
   }
+  if (token>=6000 && token < 7000) {
+	let lineallamada=tablaSimbolos[contSin].linea;
+    contSin++; expect(5000);
+	expect(5001);
+	expect(5002);
+    return { tipo: 'llamada_funcion', nombre: token,linea: lineallamada };
+  }
+  
+  
+  pilaErrores.push({
+	date: new Date().toLocaleDateString('es-MX'),
+		codigo: 150,
+		linea: tablaSimbolos[contSin].linea,
+		caracter: tablaSimbolos[contSin].nombre
+});
+console.log("NO HAY FORMA"+tablaSimbolos[contSin].token);	
+  sincronizar([ 1009]);
+  return {tipo: 'avanza'};
+  throw new Error("Instrucción inválida: ${token}");
 
-  throw new Error(`Instrucción inválida: ${token}`);
-}
-
-function parseCondicion(): ASTNode {
+function parseCondicion(): Condicion {
   return parseOr();
-}
+ }
 
-function parseOr(): ASTNode {
-  let nodo = parseAnd();
-  while (tokens[contSin] === 5006) { // 'or'
-    const op = expect(5006);
+function parseOr(): Condicion {
+  let izquierda = parseAnd();
+  while (tablaSimbolos[contSin].token === 5006) {
+    contSin++;
     const derecha = parseAnd();
-    nodo = crearNodo(5006, [nodo, derecha]);
+    izquierda = { tipo: 'or', izquierda, derecha };
   }
-  return nodo;
+  return izquierda;
 }
 
-function parseAnd(): ASTNode {
-  let nodo = parseNot();
-  while (tokens[contSin] === 5008) { // 'and'
-    const op = expect(5008);
+function parseAnd(): Condicion {
+  let izquierda = parseNot();
+  while (tablaSimbolos[contSin].token === 5008) {
+    contSin++;
     const derecha = parseNot();
-    nodo = crearNodo(5008, [nodo, derecha]);
+    izquierda = { tipo: 'and', izquierda, derecha };
   }
-  return nodo;
+  return izquierda;
 }
 
-function parseNot(): ASTNode {
-  if (tokens[contSin] === 5007) { // 'not'
-    const op = expect(5007);
+function parseNot(): Condicion {
+  if (tablaSimbolos[contSin].token === 5007) {
+    contSin++;
     const valor = parseNot();
-    return crearNodo(5007, [valor]);
+    return { tipo: 'not', valor };
   }
   return parseCondicionBase();
 }
 
-function parseCondicionBase(): ASTNode {
-  if (tokens[contSin] === 5000) { // (
-    expect(5000);
+function parseCondicionBase(): Condicion {
+  if (tablaSimbolos[contSin].token === 5000) {
+    contSin++;
     const cond = parseCondicion();
     expect(5001);
     return cond;
   }
-
-  if (tokens[contSin] >= 2000 && tokens[contSin] < 3000) {
-    return expect(tokens[contSin]); // condición base
+  console.log("tokens[contSin]",tablaSimbolos[contSin].token);
+  let nombre;
+  if (tablaSimbolos[contSin].token >= 2000 && tablaSimbolos[contSin].token < 3000) {
+	nombre = tablaSimbolos[contSin].token;
+	contSin++;
+  } else {
+	pilaErrores.push({
+		date: new Date().toLocaleDateString('es-MX'),
+		codigo: 150,
+		linea: tablaSimbolos[contSin].linea,
+		caracter: tablaSimbolos[contSin].nombre
+	});
+	return{tipo: 'condicion_base', nombre: 0};
+	//throw new Error(`Se esperaba una condicion pero se encontró '${tablaSimbolos[contSin].token}'`);
   }
-
-  throw new Error(`Se esperaba condición base, se encontró ${tokens[contSin]}`);
+  return { tipo: 'condicion_base', nombre };
 }
-function imprimirAST(nodo: ASTNode, nivel = 0): void {
+
+
+}
+
+function imprimirAST(nodo: ASTNode, nivel: number = 0): void {
   const indent = '  '.repeat(nivel);
-  console.log(`${indent}<token valor="${nodo.token}">`);
-  if (nodo.hijos) {
-    nodo.hijos.forEach(h => imprimirAST(h, nivel + 1));
+
+  switch (nodo.tipo) {
+    case 'programa':
+      console.log(`${indent}<programa>`);
+
+      // Tratamos cuerpo como inicio
+      console.log(`${indent}  <inicio>`);
+      nodo.cuerpo.forEach(instr => imprimirAST(instr, nivel + 2));
+      console.log(`${indent}  </inicio>`);
+
+      // Luego imprimimos las funciones definidas
+      nodo.funciones.forEach(fn => imprimirAST(fn, nivel + 1));
+
+      console.log(`${indent}</programa>`);
+      break;
+
+    case 'define':
+      console.log(`${indent}<define nombre=${nodo.nombre}`);
+      nodo.cuerpo.forEach(instr => imprimirAST(instr, nivel + 1));
+      console.log(`${indent}</define>`);
+      break;
+
+    case 'llamada_funcion':
+	const nombre=obtenerClavePorValor(nodo.nombre)!;
+	  if(!existeSimbolo(nombre, "global")){
+		pilaErrores.push({
+			date: new Date().toLocaleDateString('es-MX'),
+			codigo: 205,
+			linea: nodo.linea,
+			caracter: obtenerClavePorValor(nodo.nombre)!
+		});
+	  }
+	  if (nodo.nombre === 0) {
+		console.log(`${indent}<llamada_funcion nombre=0 />`);
+		return;
+	  }
+	  if (nodo.nombre >= 6000 && nodo.nombre < 7000) {
+		console.log(`${indent}<llamada_funcion nombre=${nodo.nombre} />`);
+		return;
+	  }
+      console.log(`${indent}<llamada_funcion nombre=${nodo.nombre} />`);
+      break;
+
+    case 'avanza':
+    case 'gira':
+    case 'toma':
+    case 'deja':
+    case 'apagate':
+      console.log(`${indent}<${nodo.tipo} />`);
+      break;
+
+    case 'repite':
+      console.log(`${indent}<repite veces=${nodo.veces}>`);
+      nodo.cuerpo.forEach(instr => imprimirAST(instr, nivel + 1));
+      console.log(`${indent}</repite>`);
+      break;
+
+    case 'mientras':
+      console.log(`${indent}<mientras condicion=${stringCondicion(nodo.condicion)}>`);	
+      nodo.cuerpo.forEach(instr => imprimirAST(instr, nivel + 1));
+      console.log(`${indent}</mientras>"`);
+      break;
+
+    case 'si':
+      console.log(`${indent}<si condicion=${stringCondicion(nodo.condicion)}>`);
+      nodo.entonces.forEach(instr => imprimirAST(instr, nivel + 1));
+      if (nodo.sino) {
+        console.log(`${indent}  <sino>`);
+        nodo.sino.forEach(instr => imprimirAST(instr, nivel + 2));
+        console.log(`${indent}  </sino>`);
+      }
+      console.log(`${indent}</si>`);	
+      break;
+
+    default:
+      console.log(`${indent}<nodo tipo=${(nodo as any).tipo} />`);
   }
-  console.log(`${indent}</token>`);
 }
 
+function stringCondicion(cond: Condicion): string {
+  switch (cond.tipo) {
+    case 'condicion_base':
+      return (`cond ${cond.nombre}`);
+    case 'not':
+      return (`not ${stringCondicion(cond.valor)}`);
+    case 'and':
+      return (`${stringCondicion(cond.izquierda)} and ${stringCondicion(cond.derecha)}`);
+    case 'or':
+      return (`${stringCondicion(cond.izquierda)} or ${stringCondicion(cond.derecha)}`);
+    default:
+      return 'condDesconocida';
+  }
+} 
 function mover() {
   const { x, y, dir } = can;
   const checkWall = () => {
@@ -318,6 +563,7 @@ function pickBeeper() {
 }
 
 function putBeeper() {
+ console.log("can.mochila:::::",can.mochila);	
   if (can.mochila > 0) {
     const key = `${can.x},${can.y}`;
     zumbadores[key] = (zumbadores[key] || 0) + 1;
@@ -328,59 +574,284 @@ function putBeeper() {
   drawWorld();
 }
 
+
+
 function compilar() {
+	numeros.clear();
 	const code = textArea.value;
-	const resultado = analizar(code);
+	const resultado = analizar(code); // realiza análisis léxico y llena pilaErrores
 	highlightedCode = resultado;
-	let btnEjecutar = document.getElementById("btnEjecutar");
-	let txtParrafo= document.getElementById("txtError");
 
-	if (txtParrafo) {
-		txtParrafo.innerHTML = "";
+	const btnEjecutar = document.getElementById("btnEjecutar");
+	const txtParrafo = document.getElementById("txtError");
+
+	if (!txtParrafo) return;
+
+	txtParrafo.innerHTML = "";
+	txtParrafo.classList.remove("text-green-400", "text-red-400");
+
+	try {
+		tokens = cadenaDeTokens.trim().split(' ').map(Number);
+		console.log("Tokens para análisis sintáctico:", tokens);
+
+		ast = parse(tokens); // realiza análisis sintáctico y puede llenar pilaErrores
+		console.log("AST:", ast);
+		imprimirAST(ast);
+
 		if (pilaErrores.length > 0) {
-			for (let i = 0; i < pilaErrores.length; i++) {
-				const error = pilaErrores[i];
-				txtParrafo.innerHTML += `Error ${error.codigo} en la línea ${error.linea}: ${error.caracter} descripcion: ${errores.get(error.codigo)}<br>`;
+			for (const error of pilaErrores) {
+				txtParrafo.innerHTML += `[${error.date}]Error ${error.codigo} en la línea ${error.linea}: ${error.caracter} — ${errores.get(error.codigo)}<br>`;
 			}
-			txtParrafo.classList.remove("text-green-500");
-			txtParrafo.classList.add("text-red-500");
-		} else {
-			tokens = cadenaDeTokens.trim().split(' ').map(Number);
-			console.log("tokens para realizar analices sintactico",tokens);
-			ast = parse(tokens);
-			console.log("AST:", ast);
-			imprimirAST(ast);
-
-			btnEjecutar?.removeAttribute("disabled");
-			txtParrafo.innerHTML = "Sin errores";
-			txtParrafo.classList.remove("text-red-500");
-			txtParrafo.classList.add("text-green-500");
+			txtParrafo.classList.add("text-red-400");
+			btnEjecutar?.setAttribute("disabled", "true");
+			return;
 		}
+
+		const ahora = new Date();
+		txtParrafo.classList.remove("text-green-400", "text-red-400");
+		txtParrafo.classList.add("text-green-400");
+		txtParrafo.innerHTML = "["+ahora.toLocaleTimeString('es-MX')+"]Sin errores";
+		
+		btnEjecutar?.removeAttribute("disabled");
+
+	} catch (e) {
+		if (pilaErrores.length > 0) {
+			for (const error of pilaErrores) {
+				txtParrafo.innerHTML += `Error ${error.codigo} en la línea ${error.linea}: ${error.caracter} — ${errores.get(error.codigo)}<br>`;
+			}
+			txtParrafo.classList.add("text-red-400");
+			btnEjecutar?.setAttribute("disabled", "true");
+			return;
+		}
+		txtParrafo.innerHTML = `Error durante el análisis: ${(e as Error).message}`;
+		txtParrafo.classList.add("text-red-400");
+		btnEjecutar?.setAttribute("disabled", "true");
 	}
 }
-function ejecutar() {
-  const acciones = [
-    mover,
-    mover,
-    mover,
-    pickBeeper,
-    turnLeft,
-    turnLeft,
-    turnLeft,
-    mover,
-    putBeeper
-  ];
+function buscarDefinicion(ast: ASTNode, token: number): ASTNode | undefined {
+  if (ast.tipo === 'define' && ast.nombre === token) {
+    return ast;
+  }
 
-  acciones.reduce((prom, accion) => {
-    return prom.then(() => new Promise(res => {
-      setTimeout(() => {
-        accion();
-        res();
-      }, 500);
-    }));
-  }, Promise.resolve());
+  // Si el nodo es un 'programa', buscamos en su lista de funciones
+  if (ast.tipo === 'programa') {
+    for (const f of ast.funciones) {
+      const resultado = buscarDefinicion(f, token);
+      if (resultado) return resultado;
+    }
+  }
+
+  // Buscar dentro del cuerpo si existe
+  if ('cuerpo' in ast && Array.isArray(ast.cuerpo)) {
+    for (const nodo of ast.cuerpo) {
+      const resultado = buscarDefinicion(nodo, token);
+      if (resultado) return resultado;
+    }
+  }
+
+  return undefined;
 }
 
+function hayParedEnFrente(): boolean {
+  const { x, y, dir } = can;
+
+  // Límite del mundo
+  if ((dir === 0 && y === 0) ||            // Norte
+      (dir === 1 && x === gridSize - 1) || // Este
+      (dir === 2 && y === gridSize - 1) || // Sur
+      (dir === 3 && x === 0))              // Oeste
+  {
+    return true;
+  }
+
+  // Verificar si hay una pared al frente
+  if (dir === 0) return !!wallsH[`${x},${y}`];        // Norte
+  if (dir === 1) return !!wallsV[`${x + 1},${y}`];    // Este
+  if (dir === 2) return !!wallsH[`${x},${y + 1}`];    // Sur
+  if (dir === 3) return !!wallsV[`${x},${y}`];        // Oeste
+
+  return false;
+}
+
+function hayParedALaIzquierda(): boolean {
+  const { x, y, dir } = can;
+
+  // Verificar si hay límite del mundo a la izquierda
+  if ((dir === 0 && x === 0) ||                // Norte → izquierda es Oeste
+      (dir === 1 && y === 0) ||                // Este → izquierda es Norte
+      (dir === 2 && x === gridSize - 1) ||     // Sur → izquierda es Este
+      (dir === 3 && y === gridSize - 1))       // Oeste → izquierda es Sur
+  {
+    return true;
+  }
+
+  // Verificar si hay una pared a la izquierda
+  if (dir === 0) return !!wallsV[`${x},${y}`];          // Oeste
+  if (dir === 1) return !!wallsH[`${x},${y}`];          // Norte
+  if (dir === 2) return !!wallsV[`${x + 1},${y}`];      // Este
+  if (dir === 3) return !!wallsH[`${x},${y + 1}`];      // Sur
+
+  return false;
+}
+function hayParedALaDerecha(): boolean {
+  const { x, y, dir } = can;
+
+  // Verificar si hay límite del mundo a la derecha
+  if ((dir === 0 && x === gridSize - 1) ||     // Norte → derecha es Este
+      (dir === 1 && y === gridSize - 1) ||     // Este → derecha es Sur
+      (dir === 2 && x === 0) ||                // Sur → derecha es Oeste
+      (dir === 3 && y === 0))                  // Oeste → derecha es Norte
+  {
+    return true;
+  }
+
+  // Verificar si hay una pared a la derecha
+  if (dir === 0) return !!wallsV[`${x + 1},${y}`];      // Este
+  if (dir === 1) return !!wallsH[`${x},${y + 1}`];      // Sur
+  if (dir === 2) return !!wallsV[`${x},${y}`];          // Oeste
+  if (dir === 3) return !!wallsH[`${x},${y}`];          // Norte
+
+  return false;
+}
+
+function hayZumbador(): boolean {
+  return zumbadores[`${can.x},${can.y}`] > 0;
+}
+function evaluarCondicion(cond: Condicion): boolean {
+  switch (cond.tipo) {
+	
+    case 'condicion_base':
+		console.log("---------can.mochila",can.mochila);
+      const nombreCond = cond.nombre;
+      if (!nombreCond) return false;
+      // Aquí puedes mapear condiciones como "frente-libre", "zumbador-en-la-mochila", etc.
+     switch (nombreCond) {
+        case 2000: return !hayParedEnFrente(); // frente_libre
+        case 2010: return hayParedEnFrente();  // frente_bloq
+
+        case 2020: return !hayParedALaIzquierda(); // izq_libre
+        case 2030: return hayParedALaIzquierda();  // izq_bloq
+
+        case 2040: return !hayParedALaDerecha();   // der_libre
+        case 2050: return hayParedALaDerecha();    // der_bloq
+
+        case 2060: return hayZumbador();           // junto_zum
+        case 2070: return !hayZumbador();          // no_junto_zum
+
+        case 2080: return can.mochila > 0;         // zum_moc
+        case 2090: return can.mochila === 0;       // no_zum_moc
+
+        case 2100: return can.dir === 0;           // orientado_norte
+        case 2110: return can.dir === 2;           // orientado_sur
+        case 2120: return can.dir === 1;           // orientado_este
+        case 2130: return can.dir === 3;           // orientado_oest
+
+        case 2140: return can.dir !== 0;           // no_orientado_norte
+        case 2150: return can.dir !== 2;           // no_orientado_sur
+        case 2160: return can.dir !== 1;           // no_orientado_este
+        case 2170: return can.dir !== 3;           // no_orientado_oeste
+      }
+      // Agrega más condiciones según las que manejes
+      return false;
+
+    case 'not':
+      return !evaluarCondicion(cond.valor);
+
+    case 'and':
+      return evaluarCondicion(cond.izquierda) && evaluarCondicion(cond.derecha);
+
+    case 'or':
+      return evaluarCondicion(cond.izquierda) || evaluarCondicion(cond.derecha);
+  }
+}
+function esperar(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+async function interpretar(nodos: ASTNode[]) {
+  for (const nodo of nodos) {
+	if (detenerEjecucion) return; // 👈 S
+    switch (nodo.tipo) {
+      case 'programa':
+        await interpretar(nodo.cuerpo);
+        break;
+
+      case 'define':
+        // No hacer nada aquí, ya está registrada la función
+        break;
+
+      case 'llamada_funcion': {
+        const def = buscarDefinicion(ast, nodo.nombre);
+        if (def?.cuerpo) {
+          await interpretar(def.cuerpo);
+        }
+        break;
+      }
+
+      case 'avanza':
+        mover();
+        await esperar(500);
+        break;
+
+      case 'gira':
+        turnLeft();
+        await esperar(500);
+        break;
+
+      case 'toma':
+        pickBeeper();
+        await esperar(500);
+        break;
+
+      case 'deja':
+        putBeeper();
+        await esperar(500);
+        break;
+
+      case 'apagate':
+		
+        alert("Programa finalizado.");
+        return;
+
+      case 'repite': {
+        const veces = obtenerNumero(nodo.veces);
+		console.log("veces",veces);
+        for (let i = 0; i < veces; i++) {
+			if (detenerEjecucion) return; 
+          await interpretar(nodo.cuerpo);
+        }
+        break;
+      }
+
+      case 'mientras':
+        while (evaluarCondicion(nodo.condicion)) {
+			if (detenerEjecucion) return; 
+          await interpretar(nodo.cuerpo);
+        }
+        break;
+
+      case 'si': {
+        const bloque = evaluarCondicion(nodo.condicion) ? nodo.entonces : (nodo.sino ?? []);
+        await interpretar(bloque);
+        break;
+      }
+    }
+  }
+}
+
+
+function obtenerNumero(valorBuscado: number): number{
+  for (let [clave, valor] of numeros.entries()) {
+    if (valor === valorBuscado) {
+      return clave;
+    }
+  }
+  return 0; // No se encontró
+}
+async function ejecutar() {
+	 detenerEjecucion = false;
+  can.mochila=zumbadoresMoc;
+  await interpretar([ast]);
+}
 
 //Definición de funciones para leer los documento de la matriz
 async function cargarMatriz() {
@@ -432,7 +903,7 @@ function analizar(code: string): string {
 			'0': 27, '1': 28, '2': 29, '3': 30, '4': 31, '5': 32,
 			'6': 33, '7': 34, '8': 35, '9': 36, '_': 37, '&': 38, '|': 39, '!': 40,
 			 '{': 41, '}': 42, '(': 43, ')': 44,
-			'\n': 45, ' ': 46, ';': 47
+			'\n': 45, ' ': 46, ';': 47,'#':48,'/':49
 		};
 		return mapa[carac] ?? -5;
 	};
@@ -440,15 +911,16 @@ function analizar(code: string): string {
 	for (let i = 0; i < code.length; i++) {
 		const carac = code[i];
 		const valor = valorCarac(carac);
-		//console.log("valor caracter:",valor);
+		console.log("valor caracter:",valor);
 
-
+		
 		if(carac=='\n')
 			numeroLinea++;
 		if (valor === -5) {
 			cadena += carac;
 			resultado += `<span class="text-red-500">${cadena}</span>`;
 			const error={
+				date: new Date().toLocaleDateString('es-MX'),
 				codigo: -5,
 				linea: numeroLinea,
 				caracter:carac
@@ -468,13 +940,14 @@ function analizar(code: string): string {
 		
 		cadena += carac;
 		cadenaCond += carac;
-
+		//console.log("------normal;",current_st)
 		// Cambio de estado
 		current_st = matriz[current_st + 1][valor];
+		//console.log("-----");
 		//console.log("condicional currentst:",current_st_cond+1);
 		current_st_cond = matrizCondicionales[current_st_cond + 1][valor];
-		
-		//console.log("normal:",current_st);
+		//console.log("*****condicional currentst:",current_st_cond+1);
+		console.log("normal:",current_st);
 		//console.log("condicional:",current_st_cond);
 		// Error
 		if(current_st==0){
@@ -486,6 +959,7 @@ function analizar(code: string): string {
 			
 				//resultado += `<span class="text-red-500">${cadena}</span>`;
 				const error={
+					date: new Date().toLocaleDateString('es-MX'),
 					codigo: current_st,
 					linea: numeroLinea,
 					caracter:cadena
@@ -569,6 +1043,10 @@ function analizar(code: string): string {
 					linea: numeroLinea,
 					ambito: "local"
 				});
+			}else if(current_st>=7000){
+				console.log("cadena:",cadena);
+				clase = "text-lime-300";
+
 			}
 
 			else if (current_st >= 6000 && current_st < 7000){
@@ -590,11 +1068,11 @@ function analizar(code: string): string {
 			} // definicion de funcioenes
 			if(current_st_cond>=2000 && current_st_cond<3000)
 				i--;
-			else if (!(current_st>=5000&&current_st<=5005)&&current_st!=5007 && !(current_st_cond>=2000 && current_st_cond<3000)){
+			else if (!(current_st>=5000&&current_st<=5005)&&current_st!=5007 && !(current_st_cond>=2000 && current_st_cond<3000)&&!(current_st>=7000)){
 				//console.log(cadena.substring(0, cadena.length - 1));
 				resultado += `<span class="${clase}">${cadena.substring(0,cadena.length-1)}</span>`;
 				i--;
-			}else if(current_st==5007 ||  (current_st>=5000&&current_st<=5005)) {
+			}else if(current_st==5007 ||  (current_st>=5000&&current_st<=5005)||current_st>=7000) {
 				//console.log(cadena);
 				resultado += `<span class="${clase}">${cadena}</span>`;
 			}
@@ -617,6 +1095,7 @@ function analizar(code: string): string {
 	if(cadena!=="" && cadena!=="\n"){
 		resultado += `<span class="text-red-500">${cadena}</span>`;
 		const error={
+			date: new Date().toLocaleDateString('es-MX'),
 			codigo: -100,
 			linea: numeroLinea,
 			caracter:cadena
@@ -937,7 +1416,7 @@ bg-gray-900" >
 			</div>
 		</div>
 		<div class="relative group inline-block"> 
-			<button class="bg-yellow-600 hover:bg-red-700 px-4 py-2 rounded-xl text-sm shadow">
+			<button class="bg-yellow-600 hover:bg-red-700 px-4 py-2 rounded-xl text-sm shadow" on:click={()=>detenerEjecucion=true}>
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
 				  </svg>				  

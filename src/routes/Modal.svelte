@@ -8,81 +8,153 @@ export let tokens;
 export let opcion = "";
 
 export let ast: ASTNode;
+  type ASTNode =
+    | { tipo: 'programa', cuerpo: ASTNode[]; funciones: ASTNode[] }
+    | { tipo: 'define', nombre: number, cuerpo: ASTNode[] }
+    | { tipo: 'llamada_funcion', nombre: number }
+    | { tipo: 'avanza' }
+    | { tipo: 'gira' }
+    | { tipo: 'toma' }
+    | { tipo: 'deja' }
+    | { tipo: 'apagate' }
+    | { tipo: 'repite', veces: number, cuerpo: ASTNode[] }
+    | { tipo: 'mientras', condicion: Condicion, cuerpo: ASTNode[] }
+    | { tipo: 'si', condicion: Condicion, entonces: ASTNode[], sino?: ASTNode[] };
 
-function contarHojas(node: ASTNode): number {
-  if (!node.hijos || node.hijos.length === 0) return 1;
-  return node.hijos.reduce((acc, hijo) => acc + contarHojas(hijo), 0);
-}
+  type Condicion =
+    | { tipo: 'condicion_base', nombre: number }
+    | { tipo: 'not', valor: Condicion }
+    | { tipo: 'and', izquierda: Condicion, derecha: Condicion }
+    | { tipo: 'or', izquierda: Condicion, derecha: Condicion };
 
-type ASTNode = {
-  token: number;
-  hijos?: ASTNode[];
-};
+  let canvas: HTMLCanvasElement;
+  let idCounter = 0;
 
-let canvas: HTMLCanvasElement;
-let idCounter = 0;
+  // Parámetros de layout
+  const nodeWidth = 120;
+  const nodeHeight = 40;
+  const horizontalSpacing = 30;
+  const verticalSpacing = 80;
 
-function sintactico() {
-  if (canvas) {
+  function sintactico() {
     const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const hojas = contarHojas(ast);
-      const nuevoAncho = Math.max(hojas * 100, 800);
-      canvas.width = nuevoAncho;
+    if (!ctx) return;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = 'black';
-      ctx.lineWidth = 2;
-      idCounter = 0;
-      drawNode(ctx, ast, canvas.width / 2, 50, canvas.width / 2);
-    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    idCounter = 0;
+
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Calculamos posiciones y dibujamos
+    const startX = canvas.width / 2;
+    const startY = 20;
+
+    dibujarNodo(ast, startX, startY, ctx);
   }
-}
-function drawNode(
-  ctx: CanvasRenderingContext2D,
-  node: ASTNode,
-  x: number,
-  y: number,
-  offset: number
-) {
-  const nodeId = idCounter++;
-  const radius = 20;
 
-  // Dibuja el nodo actual
-  ctx.fillStyle = 'lightblue';
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
+  // Función que dibuja un nodo y devuelve el ancho total ocupado por el nodo y sus hijos
+  function dibujarNodo(nodo: ASTNode | Condicion, x: number, y: number, ctx: CanvasRenderingContext2D): number {
+    const hijos: (ASTNode | Condicion)[] = [];
 
-  // Texto centrado
-  ctx.fillStyle = 'black';
-  ctx.font = '12px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`T${node.token}`, x, y);
+    if ('cuerpo' in nodo && Array.isArray(nodo.cuerpo)) hijos.push(...nodo.cuerpo);
+    if ('entonces' in nodo && Array.isArray(nodo.entonces)) hijos.push(...nodo.entonces);
+    if ('sino' in nodo && Array.isArray(nodo.sino)) hijos.push(...nodo.sino);
+    if ('funciones' in nodo && Array.isArray(nodo.funciones)) hijos.push(...nodo.funciones);
+    if ('condicion' in nodo && nodo.condicion) hijos.unshift(nodo.condicion);
 
-  if (node.hijos && node.hijos.length > 0) {
-    const spacing = Math.max(offset / node.hijos.length, 60); // mínimo 60 px entre hijos
-    const startX = x - spacing * (node.hijos.length - 1) / 2;
+    // Si no tiene hijos, dibuja solo el nodo
+    if (hijos.length === 0) {
+      dibujarRectangulo(ctx, x, y, nodo);
+      return nodeWidth;
+    }
 
-    node.hijos.forEach((child, index) => {
-      const childX = startX + index * spacing;
-      const childY = y + 100;
+    // Primero calculamos el ancho total que ocuparán todos los hijos juntos
+    const hijosAnchos = hijos.map(h => dibujarNodoObtenerAncho(h));
+    const totalAncho = hijosAnchos.reduce((a, b) => a + b, 0) + (hijos.length - 1) * horizontalSpacing;
 
-      // Línea al hijo
+    // Posición inicial para el primer hijo (centrado respecto al padre)
+    let currentX = x - totalAncho / 2;
+
+    // Dibuja líneas y hijos
+    hijos.forEach((hijo, i) => {
+      const anchoHijo = hijosAnchos[i];
+      const hijoX = currentX + anchoHijo / 2;
+      const hijoY = y + verticalSpacing;
+
+      // Línea desde centro abajo del nodo padre al centro arriba del hijo
       ctx.beginPath();
-      ctx.moveTo(x, y + radius);
-      ctx.lineTo(childX, childY - radius);
+      ctx.moveTo(x, y + nodeHeight);
+      ctx.lineTo(hijoX, hijoY);
       ctx.stroke();
 
-      // Dibujo recursivo
-      drawNode(ctx, child, childX, childY, offset * 0.6);
+      // Dibuja recursivamente el hijo
+      dibujarNodo(hijo, hijoX, hijoY, ctx);
+
+      currentX += anchoHijo + horizontalSpacing;
+    });
+
+    // Dibuja el nodo actual encima de sus hijos
+    dibujarRectangulo(ctx, x, y, nodo);
+
+    return totalAncho > nodeWidth ? totalAncho : nodeWidth;
+  }
+
+  // Función auxiliar para estimar el ancho que ocupará un nodo (sin dibujar)
+  function dibujarNodoObtenerAncho(nodo: ASTNode | Condicion): number {
+    let hijos: (ASTNode | Condicion)[] = [];
+    if ('cuerpo' in nodo && Array.isArray(nodo.cuerpo)) hijos.push(...nodo.cuerpo);
+    if ('entonces' in nodo && Array.isArray(nodo.entonces)) hijos.push(...nodo.entonces);
+    if ('sino' in nodo && Array.isArray(nodo.sino)) hijos.push(...nodo.sino);
+    if ('funciones' in nodo && Array.isArray(nodo.funciones)) hijos.push(...nodo.funciones);
+    if ('condicion' in nodo && nodo.condicion) hijos.unshift(nodo.condicion);
+
+    if (hijos.length === 0) return nodeWidth;
+
+    const hijosAnchos = hijos.map(dibujarNodoObtenerAncho);
+    const totalAncho = hijosAnchos.reduce((a, b) => a + b, 0) + (hijos.length - 1) * horizontalSpacing;
+    return totalAncho > nodeWidth ? totalAncho : nodeWidth;
+  }
+
+  function dibujarRectangulo(ctx: CanvasRenderingContext2D, x: number, y: number, nodo: ASTNode | Condicion) {
+    const colorFondo = esCondicion(nodo) ? '#9b59b6' : '#8e44ad';
+
+    ctx.fillStyle = colorFondo;
+    ctx.fillRect(x - nodeWidth / 2, y, nodeWidth, nodeHeight);
+    ctx.strokeStyle = 'black';
+    ctx.strokeRect(x - nodeWidth / 2, y, nodeWidth, nodeHeight);
+    ctx.fillStyle = 'white';
+
+    // Texto multilinea para mayor claridad si es muy largo
+    const texto = formatearTexto(nodo);
+    const lineas = texto.split('\n');
+    lineas.forEach((linea, i) => {
+      ctx.fillText(linea, x, y + nodeHeight / 2 + (i - (lineas.length - 1) / 2) * 16);
     });
   }
-}
+
+  function esCondicion(obj: any): obj is Condicion {
+    return obj && typeof obj === 'object' && ['condicion_base', 'not', 'and', 'or'].includes(obj.tipo);
+  }
+
+  function formatearTexto(nodo: ASTNode | Condicion): string {
+    switch (nodo.tipo) {
+      case 'define':
+      case 'llamada_funcion':
+      case 'condicion_base':
+        return `${nodo.tipo} (${(nodo as any).nombre})`;
+      case 'repite':
+        return `repite ${(nodo as any).veces}`;
+      case 'and':
+      case 'or':
+        return `${nodo.tipo}\n${formatearTexto(nodo.izquierda)}\n${formatearTexto(nodo.derecha)}`;
+      case 'not':
+        return `not\n${formatearTexto(nodo.valor)}`;
+      default:
+        return nodo.tipo;
+    }
+  }
 
 </script>
 

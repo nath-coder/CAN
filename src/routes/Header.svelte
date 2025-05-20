@@ -1,7 +1,7 @@
 
 <script lang="ts">
 	import { page } from '$app/state'; // ← store correcto para `page`
-	import logo from '$lib/images/svelte-logo.svg';
+	import logo from '$lib/images/can.png';
 	import github from '$lib/images/github.svg';
 
 	let isOpen = false;
@@ -15,7 +15,7 @@
 	<div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
 		<!-- Logo -->
 		<a href="/" class="flex items-center gap-3">
-			<img src={logo} alt="SvelteKit" class="w-8 h-8" />
+			<img src={logo} alt="SvelteKit" class="w-12 h-8" />
 			<span class="text-xl font-extrabold tracking-wide text-fuchsia-400">CAN</span>
 		</a>
 

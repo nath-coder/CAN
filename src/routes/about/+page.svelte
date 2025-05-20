@@ -11,19 +11,13 @@
 		{
 			name: "Cristian Eduardo Castañeda Perez",
 			role: "Creación de matrices de transición",
-			image: "/images/imagen.jpg",
+			image: "/images/cris_foto.jpg",
 			description: "Apasionado por la programación y creador del proyecto."
-		},
-		{
-			name: "Abel Aguilar Flores",
-			role: "Diseñador de Interfaz",
-			image: "/images/imagen.jpg",
-			description: "Encargado de la experiencia de usuario y el diseño visual."
 		},
 		{
 			name: "Diana Nathasha Macías Sevilla",
 			role: "Desarrolladora de Backend",
-			image: "/images/imagen.jpg",
+			image: "/images/nathasha.png",
 			description: "Especialista en estructuras de datos y compiladores."
 		}
 	];
@@ -120,7 +114,7 @@
 				NUESTRO <span class="text-purple-300">EQUIPO</span>
 			</h2>
 			
-			<div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+			<div class="grid gap-8 md:grid-cols-2 lg:grid-cols-2">
 				{#each team as member}
 					<div class="bg-gradient-to-br from-purple-700/20 to-indigo-800/20 backdrop-blur-sm rounded-3xl shadow-lg p-8 hover:scale-[1.03] transform transition-all duration-300 border border-white/10">
 						<div class="flex flex-col items-center text-center">

@@ -9,7 +9,7 @@
         {
             titulo: 'Manual del Compilador Karel',
             descripcion: 'Guía completa sobre el compilador y el mundo de Karel.',
-            url: '/pdfs/actividad4.pdf'
+            url: '/pdfs/documentacion.pdf'
         },
         {
             titulo: 'Análisis Léxico',
@@ -19,7 +19,7 @@
         {
             titulo: 'Análisis Sintáctico',
             descripcion: 'Cómo utilizar la herramienta paso a paso.',
-            url: '/pdfs/actividad6.pdf'
+            url: '/pdfs/actividad5.pdf'
         },
         {
             titulo: 'Análisis Semántico',
