@@ -862,7 +862,6 @@ async function cargarMatriz() {
 	matriz = texto.trim().split('\n').map(linea =>
 		linea.split('\t').map(Number)
 	);
-
 }
 
 async function cargarMatrizCondicionales() {
@@ -873,7 +872,6 @@ async function cargarMatrizCondicionales() {
 	matrizCondicionales = texto.trim().split('\n').map(linea =>
 		linea.split('\t').map(Number)
 	);
-
 }
 
 //analizador lexico
@@ -1107,7 +1105,6 @@ function analizar(code: string): string {
 	return resultado;
 }
 
-
 $: highlightedCode = analizar(code);
 
 function syncScroll() {
@@ -1289,6 +1286,11 @@ function descargarCodigo() {
 	URL.revokeObjectURL(url);
 }
 
+  function abrirEditorExpandido() {
+    selectedOption = 'editor ampliado';
+    showModal = true;
+  }
+
 function ver(){
 	showModal = true;
 }
@@ -1379,7 +1381,7 @@ bg-gray-900" >
 			</button>
 		  
 			<div
-			  class="absolute up-full left-1/2 -translate-x-1/2 mb-2
+			  class="absolute top-full left-1/2 -translate-x-1/2 mb-2
 					 hidden group-hover:flex px-3 py-1 bg-gray-800 text-white text-xs 
 					 rounded shadow-lg z-10 whitespace-nowrap"
 			>
@@ -1502,7 +1504,13 @@ bg-gray-900" >
 			</div>	
 		</div>
 	  </div>
-	  <Modal  tokens={tokens} tablaSimbolos={tablaSimbolos} opcion={selectedOption} open={showModal} onClose={cerrar}  ast={ast}/>
+	  <Modal  
+	  	tokens={tokens} 
+		tablaSimbolos={tablaSimbolos} 
+		opcion={selectedOption} 
+		open={showModal} 
+		onClose={cerrar}  
+		ast={ast}/>
 	  <div>
 		<input
 		  type="number"
@@ -1515,28 +1523,51 @@ bg-gray-900" >
 	</div>
   
 	<!-- Cuerpo -->
-	<div class="flex flex-1 overflow-hidden">
-	  <!-- Barra lateral izquierda -->
+<div class="flex flex-1 overflow-hidden">
+  <!-- Barra lateral izquierda -->
+  <div class="w-1/4 bg-gray-900 text-white flex flex-col border-r border-gray-700 relative">
 
-	  
+    <!-- Contenedor del editor -->
+    <div class="relative w-full h-3/4 bg-gray-900 rounded-md font-mono text-sm">
+      <!-- Div resaltado -->
+      <div
+        class="absolute top-0 left-0 right-0 bottom-0 p-2 box-border pointer-events-none whitespace-pre font-mono text-sm leading-relaxed overflow-auto"
+        bind:this={highlightedDiv}
+      >
+        <div>{@html highlightedCode}</div>
+      </div>
 
-	  <div class="w-1/4 bg-gray-900 text-white flex flex-col border-r border-gray-700">
-		<div class="relative w-full h-3/4 bg-gray-900 rounded-md font-mono text-sm">
-			<!-- Div resaltado -->
-			<div
-			class="absolute top-0 left-0 right-0 bottom-0 p-2 box-border pointer-events-none whitespace-pre font-mono text-sm leading-relaxed overflow-auto"
-			bind:this={highlightedDiv}
-			>
-			<div>{@html highlightedCode}</div>
-			</div>
+      <!-- Botón flotante dentro del área del editor -->
+      <div class="absolute bottom-2 right-2 z-10">
+        <button
+          on:click={abrirEditorExpandido}
+          class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 transition text-white px-3 py-1.5 rounded shadow-md text-sm backdrop-blur-sm bg-opacity-90"
+        >
+          <!-- Ícono de expandir -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6m0-6L10 14m-4 7H3v-6m0 6l11-11" />
+          </svg>
+          Ampliar
+        </button>
+      </div>
 
-			<!-- Textarea -->
-			<textarea
-			class="absolute top-0 left-0 right-0 bottom-0 p-2 box-border bg-transparent text-white caret-white selection:bg-indigo-500 w-full h-full resize-none overflow-auto font-mono text-sm leading-relaxed whitespace-pre"
-			bind:value={code}
-			bind:this={textArea}
-			on:scroll={syncScroll}
-			placeholder="Escribe tu código aquí..."
+      
+      <!-- Textarea editor simple -->
+      <textarea
+        class="absolute top-0 left-0 right-0 bottom-0 p-2 box-border bg-transparent text-white caret-white selection:bg-indigo-500 w-full h-full resize-none overflow-auto font-mono text-sm leading-relaxed whitespace-pre"
+        bind:value={code}
+        bind:this={textArea}
+        on:scroll={syncScroll}
+        placeholder="Escribe tu código aquí..."
+      />
+
+			<!-- Modal reutilizable -->
+			<Modal
+				open={showModal}
+				opcion={selectedOption}
+				bind:code={code}
+        highlightedCode={highlightedCode}
+				onClose={cerrar}  
 			/>
 		</div>
   

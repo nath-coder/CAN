@@ -20,6 +20,8 @@ export let ast: ASTNode;
     | { tipo: 'repite', veces: number, cuerpo: ASTNode[] }
     | { tipo: 'mientras', condicion: Condicion, cuerpo: ASTNode[] }
     | { tipo: 'si', condicion: Condicion, entonces: ASTNode[], sino?: ASTNode[] };
+export let code = '';
+export let onSaveCodigo: (newCode: string) => void;
 
   type Condicion =
     | { tipo: 'condicion_base', nombre: number }
@@ -222,8 +224,16 @@ export let ast: ASTNode;
                 />
           </div>
 	      </div>
+            <!-- Abrir editor ampliado -->
+      {:else if opcion == "editor ampliado"}
+        <h3 class="text-lg font-semibold text-white mb-2">Editor de Código</h3>
+        <textarea
+          bind:value={code}
+          rows="20"
+          class="w-full h-[60vh] p-3 bg-gray-900 text-white font-mono rounded resize-none border border-purple-400"
+        ></textarea>  
+        
       {/if}
-
       <button
         class="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
         on:click={onClose}
