@@ -593,10 +593,12 @@ function compilar() {
 	try {
 		tokens = cadenaDeTokens.trim().split(' ').map(Number);
 		console.log("Tokens para análisis sintáctico:", tokens);
-
-		ast = parse(tokens); // realiza análisis sintáctico y puede llenar pilaErrores
-		console.log("AST:", ast);
-		imprimirAST(ast);
+		console.log(tablaSimbolos.length);
+		if(tablaSimbolos.length>0){
+			ast = parse(tokens); // realiza análisis sintáctico y puede llenar pilaErrores
+			console.log("AST:", ast);
+			imprimirAST(ast);
+		}
 
 		if (pilaErrores.length > 0) {
 			for (const error of pilaErrores) {
@@ -1076,7 +1078,7 @@ function analizar(code: string): string {
 			}
 
 			
-	        if(current_st>999 && current_st!==7000 && current_st!==4000 && current_st!=6000) 
+	        if(current_st>999 && current_st<7000 && current_st!==4000 && current_st!=6000) 
 				cadenaDeTokens += current_st+" ";
 			else if (current_st_cond>0 )
 				cadenaDeTokens += current_st_cond+" ";
