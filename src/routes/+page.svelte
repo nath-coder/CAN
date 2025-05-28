@@ -5,6 +5,7 @@ let showModal = false;
 
 let canvas: HTMLCanvasElement;
 let detenerEjecucion = false;
+let tiempoWait=500;
 const gridSize = 100;
 const cellSize = 25;
 const canvasSize = gridSize * cellSize;
@@ -12,6 +13,7 @@ const canvasSize = gridSize * cellSize;
 let wallsV: { [key: string]: boolean} = {};
 let wallsH: { [key: string]: boolean} = {};
 let zumbadores: { [key: string]: number } = {};
+let zumbadoresAux: { [key: string]: number } = {};
 
 // Variables globales adicionales
 let tablaSimbolos: Array<{
@@ -741,7 +743,10 @@ function evaluarCondicion(cond: Condicion): boolean {
         case 2070: return !hayZumbador();          // no_junto_zum
 
         case 2080: return can.mochila > 0;         // zum_moc
-        case 2090: return can.mochila === 0;       // no_zum_moc
+        case 2090:
+			 console.log('*****',can.mochila);
+			 console.log(can.mochila === 0 );
+			 return can.mochila === 0;       // no_zum_moc
 
         case 2100: return can.dir === 0;           // orientado_norte
         case 2110: return can.dir === 2;           // orientado_sur
@@ -791,27 +796,28 @@ async function interpretar(nodos: ASTNode[]) {
 
       case 'avanza':
         mover();
-        await esperar(500);
+        await esperar(tiempoWait);
         break;
 
       case 'gira':
         turnLeft();
-        await esperar(500);
+        await esperar(tiempoWait);
         break;
 
       case 'toma':
         pickBeeper();
-        await esperar(500);
+        await esperar(tiempoWait);
         break;
 
       case 'deja':
         putBeeper();
-        await esperar(500);
+        await esperar(tiempoWait);
         break;
 
       case 'apagate':
 		
         alert("Programa finalizado.");
+		detenerEjecucion=true;
         return;
 
       case 'repite': {
@@ -852,6 +858,7 @@ function obtenerNumero(valorBuscado: number): number{
 async function ejecutar() {
 	 detenerEjecucion = false;
   can.mochila=zumbadoresMoc;
+  zumbadoresAux = { ...zumbadores };
   await interpretar([ast]);
 }
 
@@ -1213,6 +1220,7 @@ function inicio(){
   can.x = 0;
   can.y = 99;
   can.dir = 0;
+  zumbadores=zumbadoresAux;
   can.mochila = zumbadoresMoc;
   drawWorld();
 }
@@ -1511,9 +1519,11 @@ bg-gray-900" >
 		tablaSimbolos={tablaSimbolos} 
 		opcion={selectedOption} 
 		open={showModal} 
+		bind:code={code}
 		onClose={cerrar}  
 		ast={ast}/>
-	  <div>
+
+		<label>Zumb</label>
 		<input
 		  type="number"
 		  min="0"
@@ -1521,7 +1531,15 @@ bg-gray-900" >
 		  class="rounded-xl px-3 py-1 text-black text-sm w-32"
 		  bind:value={zumbadoresMoc}
 		/>
-	  </div>
+
+		<label>Espera</label>
+		<input
+		  type="number"
+		  min="0"
+		  placeholder="Tiempo de espera"
+		  class="rounded-xl px-3 py-1 text-black text-sm w-32"
+		  bind:value={tiempoWait}
+		/>
 	</div>
   
 	<!-- Cuerpo -->
@@ -1564,13 +1582,14 @@ bg-gray-900" >
       />
 
 			<!-- Modal reutilizable -->
-			<Modal
-				open={showModal}
-				opcion={selectedOption}
+			<Modal  
+				tokens={tokens} 
+				tablaSimbolos={tablaSimbolos} 
+				opcion={selectedOption} 
+				open={showModal} 
 				bind:code={code}
-        highlightedCode={highlightedCode}
 				onClose={cerrar}  
-			/>
+				ast={ast}/>
 		</div>
   
 		<!-- Mensajes de error -->

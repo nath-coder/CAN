@@ -6,7 +6,7 @@ export let onClose: () => void;
 export let tablaSimbolos;
 export let tokens;
 export let opcion = "";
-
+export let code = '';
 export let ast: ASTNode;
   type ASTNode =
     | { tipo: 'programa', cuerpo: ASTNode[]; funciones: ASTNode[] }
@@ -20,8 +20,7 @@ export let ast: ASTNode;
     | { tipo: 'repite', veces: number, cuerpo: ASTNode[] }
     | { tipo: 'mientras', condicion: Condicion, cuerpo: ASTNode[] }
     | { tipo: 'si', condicion: Condicion, entonces: ASTNode[], sino?: ASTNode[] };
-export let code = '';
-export let onSaveCodigo: (newCode: string) => void;
+
 
   type Condicion =
     | { tipo: 'condicion_base', nombre: number }
@@ -33,10 +32,10 @@ export let onSaveCodigo: (newCode: string) => void;
   let idCounter = 0;
 
   // Parámetros de layout
-  const nodeWidth = 120;
-  const nodeHeight = 40;
-  const horizontalSpacing = 30;
-  const verticalSpacing = 80;
+  const nodeWidth = 60;
+  const nodeHeight = 20;
+  const horizontalSpacing = 10;
+  const verticalSpacing = 40;
 
   function sintactico() {
     const ctx = canvas.getContext('2d');
@@ -45,7 +44,7 @@ export let onSaveCodigo: (newCode: string) => void;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     idCounter = 0;
 
-    ctx.font = '14px sans-serif';
+    ctx.font = '8px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -126,7 +125,7 @@ export let onSaveCodigo: (newCode: string) => void;
     ctx.fillRect(x - nodeWidth / 2, y, nodeWidth, nodeHeight);
     ctx.strokeStyle = 'black';
     ctx.strokeRect(x - nodeWidth / 2, y, nodeWidth, nodeHeight);
-    ctx.fillStyle = 'white';
+    ctx.fillStyle = 'black';
 
     // Texto multilinea para mayor claridad si es muy largo
     const texto = formatearTexto(nodo);
@@ -214,7 +213,7 @@ export let onSaveCodigo: (newCode: string) => void;
           on:click={sintactico}>Generar</button>
           <br/>
          <div class="flex-1 bg-gray-100 p-4 overflow-auto">
-         <div class="w-max overflow-x-auto">
+         <div class="w-auto overflow-x-auto">
               <canvas
                   id="miCanvas"
                   width={800}

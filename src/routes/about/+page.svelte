@@ -25,7 +25,7 @@
 	const tutor = {
 		name: "Ricardo González González",
 		role: "Tutor",
-		image: "/images/imagen.jpg",
+		image: "/images/rgg.png",
 		description: "Especialista en lenguajes de programación y autómatas."
 	}
 </script>
